@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# Test working directory
+rml_test/
+
+# Per-run artifacts and local work files (regenerated / local-only)
+lessons_learned/thh-tours.md
+output/
+data/
+vocab_cache/
+run_log_event.md
+yarrrml_skill_praesentation.html
+scripts/compact_schema.py
+scripts/build_trail_viz.py
+.devcontainer/
+
+# Temp files from DS fetches
+/tmp/*.json
+
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / local config overrides
+config.yaml
+config.local.yaml
+.env

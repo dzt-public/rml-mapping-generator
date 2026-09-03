@@ -1,0 +1,28 @@
+# Source data file path (JSON/CSV/XML input for mapping)
+source_data: "data/input.json"
+
+# Target Domain Specification URI (semantify.it) — optional, inferred from data if omitted
+# target_ds_uri: "https://semantify.it/ds/YOUR_DS_ID"
+
+# API endpoints and credentials
+api:
+  dvs_url: "https://proxy-premium.onlim.com/api/dvs/"
+  rck_url: "https://proxy.opendatagermany.io/api/rck/api/v1/"
+  ver_url: "https://proxy.opendatagermany.io/api/ver/"
+  dvs_api_key: "YOUR_DVS_API_KEY"
+  prod_api_key: "YOUR_PROD_API_KEY"
+
+# DVS organization ID
+dvs_org_id: "YOUR_DVS_ORG_ID"
+
+# Prod Organization ID (RCK and VER)
+prod_org_id: "YOUR_PROD_ORG_ID"
+
+# DS list URL
+ds_list_url: "https://semantify.it/list/YOUR_LIST_ID"
+
+# Base URI for generated entity IRIs
+base_uri: "https://onlim.com/entity/ai-rml/"
+
+# Output directory for generated JSON-LD files
+output_dir: "output/"
