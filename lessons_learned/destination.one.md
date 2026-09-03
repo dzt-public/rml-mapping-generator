@@ -1,4 +1,4 @@
-# Lessons Learned — Hubermedia / destination.one
+# Lessons Learned — destination.one
 
 ## When to use this file
 
@@ -7,8 +7,8 @@ Apply this guidance when the source data:
 - Has the top-level structure `{ "status": "...", "count": N, "items": [...], ... }`
 - Items contain a `global_id` field shaped like `t_NNNNNNN`, `e_NNN`, `p_NNN` (prefix + numeric ID)
 - Items have a `type` field with values like `"Tour"`, `"Event"`, `"POI"`, `"Hotel"`, `"Article"`, etc.
-- Contain a `source` field referencing `destination.one` or hubermedia
-- Use the standard hubermedia field set (`texts[]`, `media_objects[]`, `addresses[]`, `attributes[]`, `ratings[]`, `numbers[]`, `categories[]`, `features[]`, `keywords[]`, `geo`, `subitems[]`, `hyperObjects[]`)
+- Contain a `source` field referencing `destination.one`
+- Use the standard destination.one field set (`texts[]`, `media_objects[]`, `addresses[]`, `attributes[]`, `ratings[]`, `numbers[]`, `categories[]`, `features[]`, `keywords[]`, `geo`, `subitems[]`, `hyperObjects[]`)
 
 If the data structure matches but the entity type differs (e.g. `"Hotel"`, `"POI"`), still apply the field-semantic rules below; pick a different DS based on `type`.
 
@@ -19,7 +19,7 @@ If the data structure matches but the entity type differs (e.g. `"Hotel"`, `"POI
 
 ## DS choice by `type`
 
-| Hubermedia `type` | Recommended DS | Notes |
+| destination.one `type` | Recommended DS | Notes |
 |---|---|---|
 | `"Tour"` | **Trail v2** (`odta:Trail`, `hSsrCTQowvYH`) | tracks, hikes, cycling routes |
 | `"Event"` | **Event v2** (`schema:Event`, `ywkngcBEETdh`) | |
@@ -38,7 +38,7 @@ When items contain **mixed types**, split the source data per `type` and run one
 - **`global_id`** is the stable identifier (e.g. `t_100300586`). Prefer it over `id` for subject IRIs and `schema:identifier`. Format: `<prefix>_<digits>`.
 - **`title`** → `schema:name` as `rdf:langString @de`.
 - **`changed`** → `schema:sdDatePublished` (ISO timestamp). `created` is usually redundant — skip.
-- **`type`** is the hubermedia type, not a schema.org type — used only for DS selection.
+- **`type`** is the destination.one type, not a schema.org type — used only for DS selection.
 
 ### Texts (`texts[]` array of `{rel, type, value}`)
 
@@ -115,7 +115,7 @@ Use `id` (e.g. `m_3187305`) as the second segment of the image IRI: `ex:image/{t
 - Drop `"Rundweg"` from features (already captured via `odta:circularTrail`).
 - Categories may contain empty strings (`""`) — filter them out in the merge function.
 
-## Always-skip list (hubermedia tours)
+## Always-skip list (destination.one tours)
 
 These fields are consistently empty, redundant, or irrelevant for `Tour` items:
 
@@ -132,7 +132,7 @@ These fields are consistently empty, redundant, or irrelevant for `Tour` items:
 
 ## Reusable custom functions
 
-These functions have been validated against hubermedia data and can be reused as-is:
+These functions have been validated against destination.one data and can be reused as-is:
 
 - `func:secondsToISODuration` — `8460` → `"PT2H21M"`
 - `func:isCircular` — polyline string → boolean (compares first/last point with tolerance 0.0005)
@@ -141,9 +141,9 @@ These functions have been validated against hubermedia data and can be reused as
 - `func:licenseCodeToUrl` — `"CC-BY-SA"` → `"https://creativecommons.org/licenses/by-sa/4.0/"` (also handles `CC-BY`, `CC0`, `PD`)
 - `func:mergeKeywords` — combines `categories`, `keywords`, `features` arrays, dedupes, drops `"Rundweg"` and empty strings
 
-## RocketRML pitfalls (encountered with hubermedia data)
+## RocketRML pitfalls (encountered with destination.one data)
 
-These are not hubermedia-specific but were confirmed during the trail mapping:
+These are not destination.one-specific but were confirmed during the trail mapping:
 
 1. **Object arrays get destroyed when passed to FnO functions** — RocketRML stringifies each object in the array to `"[object Object]"`. Filter functions like `getRatingByType(ratings, ...)` cannot work. **Workaround:** use a separate sub-mapping with a JSONPath filter in its iterator (e.g. `"$.items[*].ratings[?(@.type=='difficulty')]"`) and join from the parent.
 
@@ -160,5 +160,5 @@ These are not hubermedia-specific but were confirmed during the trail mapping:
 ## Open questions / known unknowns
 
 - `seasons[]` — could it be modeled as multiple `OpeningHoursSpecification` entries? Place v2 supports those, but Trail v2 does not have a season property.
-- `addresses[?rel='author']` returning multiple authors — never observed in hubermedia, but the model should support multiple `schema:sdPublisher` triples if it occurs.
-- `subitems[*]` — Segments could be modeled as `odta:containsSection` → `schema:ItemList`, but the hubermedia data is too sparse to justify the complexity; skipped here.
+- `addresses[?rel='author']` returning multiple authors — never observed in destination.one, but the model should support multiple `schema:sdPublisher` triples if it occurs.
+- `subitems[*]` — Segments could be modeled as `odta:containsSection` → `schema:ItemList`, but the destination.one data is too sparse to justify the complexity; skipped here.
