@@ -1,0 +1,15 @@
+{
+  "name": "rml-mapping-generator-local-engine",
+  "private": true,
+  "description": "Local, key-free YARRRML execution: yarrrml-parser (YARRRML -> RML) + RocketRML (RML -> JSON-LD). jsonld is overridden because jsonld 5 pulls in the 'esm' loader, which crashes on current Node.",
+  "dependencies": {
+    "@rmlio/yarrrml-parser": "1.12.2",
+    "js-logger": "1.6.1",
+    "n3": "1.17.4",
+    "rocketrml": "3.0.0",
+    "yamljs": "0.3.0"
+  },
+  "overrides": {
+    "jsonld": "8.3.3"
+  }
+}
