@@ -1,10 +1,19 @@
+# Access mode:
+#   api   — OpenDataGermany / Onlim APIs: RCK runs the mapping, VER validates, DVS serves DSs.
+#           Needs the API keys and org IDs below. VER is the authoritative validator.
+#   local — no API keys. Mapping runs on open-source RocketRML (Node.js, local_engine/),
+#           DSs come from public semantify.it, verification is LIMITED: a standard
+#           SHACL check against the public DS, not VER. Setup: `npm install --prefix local_engine` and
+#           `pip install -e ".[local]"`. The api block and org IDs are ignored.
+mode: "api"
+
 # Source data file path (JSON/CSV/XML input for mapping)
 source_data: "data/input.json"
 
 # Target Domain Specification URI (semantify.it) — optional, inferred from data if omitted
 # target_ds_uri: "https://semantify.it/ds/YOUR_DS_ID"
 
-# API endpoints and credentials
+# API endpoints and credentials (api mode only)
 api:
   dvs_url: "https://proxy-premium.onlim.com/api/dvs/"
   rck_url: "https://proxy.opendatagermany.io/api/rck/api/v1/"
@@ -12,14 +21,14 @@ api:
   dvs_api_key: "YOUR_DVS_API_KEY"
   prod_api_key: "YOUR_PROD_API_KEY"
 
-# DVS organization ID
+# DVS organization ID (api mode only)
 dvs_org_id: "YOUR_DVS_ORG_ID"
 
-# Prod Organization ID (RCK and VER)
+# Prod Organization ID (RCK and VER, api mode only)
 prod_org_id: "YOUR_PROD_ORG_ID"
 
-# DS list URL
-ds_list_url: "https://semantify.it/list/YOUR_LIST_ID"
+# DS list URL — public in both modes. Example: ODTA Domain Specifications v2.2
+ds_list_url: "https://semantify.it/list/CRkyvcqGqeUu"
 
 # Base URI for generated entity IRIs
 base_uri: "https://onlim.com/entity/ai-rml/"

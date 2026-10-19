@@ -12,6 +12,9 @@ build/
 venv/
 env/
 
+# Node deps of the local (key-free) engine — package-lock.json IS committed
+local_engine/node_modules/
+
 # Test working directory
 rml_test/
 

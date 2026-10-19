@@ -9,5 +9,13 @@ dependencies = [
     "rdflib",
 ]
 
+[project.optional-dependencies]
+# key-free "local" mode: SHACL validation against public DSs
+local = ["pyshacl>=0.25"]
+
 [project.scripts]
 rml-cli = "cli:main"
+
+[tool.setuptools]
+py-modules = ["cli"]
+packages = ["functions"]

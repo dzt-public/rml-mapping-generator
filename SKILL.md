@@ -1,6 +1,6 @@
 ---
 name: rml-mapping-generator
-description: Generate, debug, and validate YARRRML/RML mapping files that transform structured source data (JSON, CSV, XML) into Linked Data conforming to a target ontology or domain specification (schema.org, ODTA, etc.). Use when the user needs to create or fix RML/YARRRML mappings, map source fields to ontology properties, handle nested JSON with JSONPath, write FnO inline JS functions, or interpret DS validation errors.
+description: Generate, debug, and validate YARRRML/RML mapping files that transform structured source data (JSON, CSV, XML) into Linked Data conforming to a target ontology or domain specification (schema.org, ODTA, etc.). Use when the user needs to create or fix RML/YARRRML mappings, map source fields to ontology properties, handle nested JSON with JSONPath, write FnO inline JS functions, or interpret DS validation errors. Works with OpenDataGermany API keys (RCK/VER) or fully without keys (local open-source RocketRML + SHACL check against public semantify.it DSs).
 ---
 
 You are an expert in YARRRML/RML mapping generation for Linked Data transformation. Your task is to generate, debug, and validate YARRRML mapping files based on the user's inputs, using an iterative loop of mapping, execution, and validation.
@@ -9,13 +9,60 @@ You are an expert in YARRRML/RML mapping generation for Linked Data transformati
 
 **Division of ownership — SKILL.md vs `lessons_learned/`:** This file holds only the **source-agnostic** procedure: the phase workflow, DS schema handling, YARRRML authoring rules, and engine constraints. Everything **source- or domain-specific** — DS choice tables and fallback rules, field semantics, skip lists, validated custom functions, source-confirmed pitfalls — lives exclusively in `lessons_learned/` files. If you find a source- or domain-specific rule in this file, move it to the appropriate lessons-learned file (with user approval) rather than maintaining it in both places; duplicated rules drift.
 
+## Step 0 — Access Mode (ask first)
+
+The skill runs in one of two modes, set by `mode` in `config.yaml`:
+
+| | `api` | `local` |
+|---|---|---|
+| Needs | OpenDataGermany / Onlim API keys + org IDs | Node.js ≥ 18, Python ≥ 3.10 — **no keys** |
+| Mapping execution | RCK API | open-source RocketRML + yarrrml-parser (`local_engine/`) |
+| DS list / DS fetch | semantify.it list + DVS | public semantify.it (list + `/ds/<id>?populate=true`) |
+| Verification | VER `/rdf/verify-ds` — authoritative | **limited**: standard SHACL check against the public DS (`functions/local_validate.py`) |
+
+**Before anything else**, unless `config.yaml` already sets `mode` explicitly, ask the user in one
+message: *"Do you have an OpenDataGermany API key (for RCK/VER/DVS)? Without one I can still
+run everything locally with open-source RocketRML, but verification will be limited: only a
+standard SHACL check against the public DS, not the VER verification."* Then:
+
+- **Yes →** `mode: "api"`. Make sure `config.yaml` exists (copy `config.yaml.example`) and that
+  `api.dvs_api_key`, `api.prod_api_key`, `dvs_org_id` and `prod_org_id` are filled in; if any is a
+  placeholder, ask the user to fill it in `config.yaml` themselves — never ask them to paste keys
+  into the chat.
+- **No →** `mode: "local"`. Check `node --version` (≥ 18); if it is missing, stop and ask the user
+  to install Node.js. Run `npm install --prefix local_engine` once (skip if
+  `local_engine/node_modules/` exists) and make sure `pyshacl` and `rdflib` are importable
+  (`pip install -e ".[local]"`). The `api` block and org IDs stay placeholders — they are ignored.
+
+Write the chosen `mode` into `config.yaml` and report it:
+`[Setup] Mode: local (no API key) — RocketRML locally, SHACL validation against public DS.`
+
+**What changes in `local` mode** — tell the user once, at setup:
+
+- **Mapping output is identical to RCK's.** The local runner reproduces RCK's two YARRRML
+  extensions that stock yarrrml-parser lacks (positional function parameters `pms: ["$(a)"]`, and
+  `$(...)` references with nested parentheses such as JSONPath filters). Verified isomorphic
+  against RCK on real mappings.
+- **Verification is limited.** The DS's SHACL shapes are run through a standard SHACL validator
+  (pyshacl). This is not VER and does not try to be: a document that passes locally can still fail
+  VER, error codes are SHACL constraint names (`MinCountConstraintComponent`, …), and plain SHACL
+  flags some things VER accepts (see "Known SHACL-only errors" under DS Validation Error Handling).
+- **Only public DSs and lists work** — anything visible only through a DVS organisation is
+  unavailable.
+- The final report (Phase 5) must state that validation ran locally, and recommend a VER run
+  before the data is imported anywhere that enforces it.
+
+Everything else — phases, approval gate, authoring rules, lessons-learned — is identical in both modes.
+
 ## Required Inputs
 
 All inputs are read from `config.yaml`. Load it first and extract:
 
+- `mode` — `api` or `local` (see Step 0)
 - `source_data` — path to the input data file (JSON/CSV/XML)
 - `target_ds_uri` *(optional)* — semantify.it URI of the target DS; if absent, empty, or a placeholder, **infer it automatically** (see DS Inference below)
-- `dvs_org_id`, `prod_org_id`, `ds_list_url`, `base_uri` — API config values
+- `ds_list_url`, `base_uri` — DS list and IRI base (both modes)
+- `dvs_org_id`, `prod_org_id` — API config values (`api` mode only)
 
 If `source_data` is missing or a placeholder, stop and ask the user to fill it in `config.yaml`.
 
@@ -45,7 +92,7 @@ If after the run new non-trivial insights were learned that aren't already in th
 
 ### Loading Config and Initialising the RML Module
 
-All API calls require the rml module to be initialised from the config file first. Always begin any Python script with:
+All calls — API or local — require the rml module to be initialised from the config file first (`rml.init` picks the mode from `config["mode"]`). Always begin any Python script with:
 
 ```python
 import yaml
@@ -55,8 +102,8 @@ with open("config.yaml") as f:
     config = yaml.safe_load(f)
 rml.init(config)
 
-dvs_org_id = config["dvs_org_id"]    # used for DS_GET calls
-prod_org_id = config["prod_org_id"]  # used for RCK / VER calls
+dvs_org_id = config.get("dvs_org_id")    # used for DS_GET calls (ignored in local mode)
+prod_org_id = config.get("prod_org_id")  # used for RCK / VER calls (ignored in local mode)
 ds_list_url = config["ds_list_url"]
 base_uri = config["base_uri"]
 source_data = config["source_data"]
@@ -226,21 +273,22 @@ Recurse: for newly expanded types, repeat Phase B logic (inspect whether the sou
 
 ## Available Functions
 
-Python functions in `functions/rml.py` are available to call via the Bash tool after calling `rml.init(config)`:
+Python functions in `functions/rml.py` are available to call via the Bash tool after calling `rml.init(config)`. **Each function has the same signature and return conventions in both modes** — the workflow below never branches on the mode except where it says so. `rml.mode()` returns the active mode.
 
-- **RCK** — `rml.map_json_to_rdf(json_data, yarrrml_mapping, dataset_id, functions)` — Executes a YARRRML mapping against JSON input data via the RocketRML API. Returns a JSON-LD string on success, or an error message string (starting with `"RCK API"`) on failure.
+- **RCK** — `rml.map_json_to_rdf(json_data, yarrrml_mapping, dataset_id, functions)` — Executes a YARRRML mapping against JSON input data via the RocketRML API (`local` mode: RocketRML run locally through `local_engine/run.js`). Returns a JSON-LD string on success, or an error message string (starting with `"RCK API"`) on failure.
   - `json_data: str` — the JSON input data
   - `yarrrml_mapping: str` — the YARRRML mapping content
   - `dataset_id: str` — the source id referenced in the mapping (default: `"input"`)
   - `functions: dict | None` — optional custom functions dict passed to `mappingConfig`
 - **VER** — `rml.verify_rdf_ds(rdf_data)` — Validates a JSON-LD RDF document against the Domain Specification it declares via `ds:compliesWith`, using VER `POST /rdf/verify-ds`. Returns the full per-entity report as a dict: `{isValid, meta: {numTotalErrors, errorDistribution}, reports: [{nodeId, usedDs, verificationReport: {errors: [{errorCode, name, value, dsPath, dataPath}]}}]}`, or `{"__error": "..."}` on transport failure.
   - `rdf_data: str` — the RDF document as a JSON-LD string
+  - **`local` mode:** the same report shape comes from `functions/local_validate.py` (SHACL against the public DS, plus `"engine": "local-shacl"`). `errorCode` is the SHACL constraint component name, `name` the SHACL message, `dataPath` = `[focus node, property]`. The `compliesWith`-swap trick for strict-DS checks works the same way.
   - ⚠️ **Never use `rml.verify_rdf()` (`POST /rdf/verify`) for validation decisions.** The weak endpoint reports success for documents the TS import REJECTS (e.g. a bare `"http://"` against `xsd:anyURI`); every "passed locally, failed at import" bug in this project traces to it. `verify_rdf_ds` runs the same verifier the import does.
   - Two traps: (1) there is **no explicit-DS parameter** — it validates against whatever `ds:compliesWith` the document declares; to test against a different DS, swap `compliesWith` in a copy. (2) `isValid` is per-document, but `reports[].nodeId` (verified root) ≠ `errors[].dataPath` (failing node) — read both or nested-node failures get mis-attributed to the root.
 - **DS_LIST** — `rml.list_domain_specifications(ds_list_url)` — Fetches the list of available Domain Specifications from the URL in the config. Returns the list as a JSON string on success, or an error message string on failure.
   - `ds_list_url: str` — always append `?representation=lean` to get DS names and target classes: `config["ds_list_url"] + "?representation=lean"`
-- **DS_GET** — `rml.get_domain_specification(dvs_org_id, ds_id)` — Fetches a full Domain Specification (with all nested types populated) from the DVS API. Returns the DS as a JSON string on success, or an error message string on failure.
-  - `dvs_org_id: str` — taken from `config["dvs_org_id"]`
+- **DS_GET** — `rml.get_domain_specification(dvs_org_id, ds_id)` — Fetches a full Domain Specification (with all nested types populated) from the DVS API (`local` mode: from public `https://semantify.it/ds/<id>?populate=true`, wrapped the same way, so `content.@graph` is identical). Returns the DS as a JSON string on success, or an error message string on failure.
+  - `dvs_org_id: str` — taken from `config["dvs_org_id"]` (ignored in `local` mode)
   - `ds_id: str` — the DS ID (last segment of the semantify.it URI)
 
 **How to detect errors:** RCK errors start with `"RCK API"`. For VER, check `rep.get("isValid")` on the `verify_rdf_ds()` dict (a `__error` key means transport failure). DVS errors start with `"DVS API"`. DS list errors start with `"DS list"`.
@@ -352,6 +400,8 @@ else:
 > - `[Phase 2/5] RCK ERROR: <error summary>. Fixing mapping...`
 > - `[Phase 2/5] Fix applied: <what was changed>. Re-running RCK...`
 > - `[Phase 2/5] RCK SUCCESS: N triples produced. Saved RDF to <path>.`
+>
+> In `local` mode say `RocketRML (local)` instead of `RCK` in these lines.
 
 11. **Call RCK** — run the mapping against the source data using `rml.map_json_to_rdf()`
 12. **If RCK returns an error:**
@@ -393,6 +443,8 @@ else:
 > - `[Phase 4/5] Fix applied: <what was changed>. Returning to Phase 2...`
 > - `[Phase 4/5] VER PASSED: No validation errors.`
 > - `[Phase 4/5] Strict-DS check against <ds_id>: N violations — M fixed in mapping, K accepted deviations.`
+>
+> In `local` mode say `LOCAL-SHACL` instead of `VER` in these lines, so nobody mistakes a local pass for a VER pass.
 
 18. **Call VER** — validate the RDF against the target Domain Specification using `rml.verify_rdf_ds()` (the strict `/rdf/verify-ds` report; never `verify_rdf()` — see Available Functions)
 19. **If VER returns validation errors** (`isValid` is false):
@@ -443,6 +495,7 @@ else:
     - Total RCK attempts and VER attempts
     - Any assumptions or decisions made
     - The file paths of the saved artefacts
+    - In `local` mode: that verification was limited to a standard SHACL check, not VER — and that a VER run (`mode: api`) is recommended before importing the data into a system that enforces VER
 
 23. **Lessons-learned update proposal** — review what was learned during this run that is *not yet captured* in the matched lessons-learned file (or that would justify a new file if none matched). Examples worth proposing: a new `type` value mapped to a DS, a newly observed `rel`/`key` value in `texts[]`/`attributes[]`, a new reusable custom function, a workaround for a previously unencountered RocketRML pitfall, a field that turned out to always be empty / always meaningful.
 
@@ -612,7 +665,7 @@ When RCK succeeds but triples are missing:
 
 ## When Stuck: Read the Engine Source
 
-The RCK API is a thin wrapper around **open-source components**. When a mapping behaves inexplicably — a construct silently produces nothing, a function receives mangled parameters, a JSONPath expression parses differently than expected — and neither the constraint checklist nor bisection explains it, **stop guessing and read the engine code**:
+The RCK API is a thin wrapper around **open-source components** (in `local` mode they are already on disk under `local_engine/node_modules/rocketrml` and `local_engine/node_modules/@rmlio/yarrrml-parser` — read them there instead of cloning). When a mapping behaves inexplicably — a construct silently produces nothing, a function receives mangled parameters, a JSONPath expression parses differently than expected — and neither the constraint checklist nor bisection explains it, **stop guessing and read the engine code**:
 
 - **RocketRML** (the RML execution engine): https://github.com/semantifyit/RocketRML — Node.js. The most useful places to look: the input parsers (how JSONPath iterators and value references are evaluated, including `^^` parent handling), the function executor (how FnO parameters are collected and passed — this is where the object-array→`"[object Object]"` stringification happens), and the join/reference logic (why unreferenced mappings never run).
 - **yarrrml-parser** (YARRRML → RML translation): https://github.com/RMLio/yarrrml-parser — explains what YARRRML shorthand actually compiles to, e.g. why `~iri` after a quoted string breaks and what the long-form `type: iri` becomes.
@@ -630,13 +683,34 @@ This is a debugging escape hatch, not a first resort — use it after the checkl
 
 ## DS Validation Error Handling
 
-When VER returns validation errors:
+When VER (or, in `local` mode, the SHACL check) returns validation errors:
 
 - **Range violation** — change the object type or add a `type: iri` declaration
 - **Datatype mismatch** — add or correct `datatype: xsd:xxx`
 - **Cardinality violation (too many values)** — check for duplicate iterator paths producing duplicates
 - **Missing required property** — verify the source field exists and the JSONPath is correct
 - **Wrong class** — verify `a` (rdf:type) declarations in the mapping
+
+In `local` mode the error codes are SHACL constraint components; read them as:
+
+| `errorCode` | Meaning |
+|---|---|
+| `MinCountConstraintComponent` | required property missing |
+| `MaxCountConstraintComponent` | too many values |
+| `ClosedConstraintComponent` | property not allowed by the (closed) DS shape |
+| `OrConstraintComponent` | value matches none of the allowed ranges — wrong datatype or wrong/invalid nested node |
+| `InConstraintComponent` | enumeration value not in the allowed list |
+| `ClassConstraintComponent` / `NodeConstraintComponent` | nested node has the wrong class or violates its own shape |
+
+**Known SHACL-only errors** — plain SHACL is stricter than VER here. Prefer the mapping change
+when it is harmless; otherwise list the error as a local-mode limitation instead of contorting
+the mapping:
+
+- a plain string literal where the DS demands `xsd:anyURI` / `xsd:date` / … — emitting the value
+  with the explicit datatype (`datatype: xsd:anyURI`) satisfies both SHACL and VER;
+- an IRI reference to a node the document does not describe (e.g. `containedInPlace` pointing at
+  an existing entity) — SHACL validates the empty node and fails, VER accepts the reference.
+  Do not inline or invent the referenced node to make SHACL pass.
 
 ---
 
